@@ -46,8 +46,10 @@ async def review_pr(payload: PRReviewRequest):
         # Optional: fetch PR metadata for logging or future extensions
         _pr = await client.get_pr(payload.owner, payload.repo, payload.pr_number)
         diff_text = await client.get_pr_diff(payload.owner, payload.repo, payload.pr_number)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch PR: {e}")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"GitHub API error: {e}")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=503, detail=f"Network error: {e}")
 
     if not diff_text.strip():
         raise HTTPException(status_code=400, detail="PR diff is empty")

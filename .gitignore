@@ -1,0 +1,73 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.pyd
+*.swp
+
+# ---- virtual environments ----
+venv/
+env/
+ENV/
+.venv/
+
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ---- IDE stuff ----
+.vscode/
+.idea/
+*.iml
+
+# ---- Local python environment ----
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ---- Uvicorn reload artifacts ----
+*.db
+*.log
+
+# ---- Byte-compiled / optimized / DLL files ----
+*.so
+*.dll
+*.dylib
+
+# ---- Test / Coverage ----
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+
+# ---- Environment variables ----
+.env
+*.env
+
+# ---- Output files (your saved PR review JSONs) ----
+output/
+reports/
+*.json
+
+# ---- Build + dist ----
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ---- Jupyter ----
+.ipynb_checkpoints
+
+# ---- Backup files ----
+*~
+*.bak
+*.tmp
+*.orig
+
+# ---- General ----
+logs/
