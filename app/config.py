@@ -19,7 +19,18 @@ class Settings(BaseSettings):
     
     # Gemini Configuration (Free!)
     GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+    GEMINI_API_KEYS: str | None = os.getenv("GEMINI_API_KEYS")  # Comma-separated for rotation
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+    
+    def get_gemini_keys(self) -> list[str]:
+        """Get list of Gemini API keys for rotation."""
+        if self.GEMINI_API_KEYS:
+            # Split comma-separated keys and strip whitespace
+            keys = [key.strip() for key in self.GEMINI_API_KEYS.split(",") if key.strip()]
+            return keys
+        elif self.GEMINI_API_KEY:
+            return [self.GEMINI_API_KEY]
+        return []
     
     # LLM Settings
     MAX_TOKENS_PER_REQUEST: int = 4000
@@ -55,8 +66,10 @@ settings = Settings()
 def validate_settings():
     if settings.LLM_PROVIDER == "openai" and not settings.OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
-    if settings.LLM_PROVIDER == "gemini" and not settings.GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY is required when LLM_PROVIDER=gemini")
+    if settings.LLM_PROVIDER == "gemini":
+        keys = settings.get_gemini_keys()
+        if not keys:
+            raise ValueError("GEMINI_API_KEY or GEMINI_API_KEYS is required when LLM_PROVIDER=gemini")
 
 if os.getenv("VALIDATE_CONFIG", "false").lower() == "true":
     validate_settings()

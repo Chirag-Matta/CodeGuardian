@@ -53,24 +53,56 @@ class LLMAgent(BaseAgent):
             self.model = settings.OPENAI_MODEL
             
         elif self.provider == "gemini":
-            if not settings.GEMINI_API_KEY:
-                raise ValueError(f"{self.name} requires GEMINI_API_KEY when using Gemini provider")
+            # Get all available API keys
+            self.gemini_api_keys = settings.get_gemini_keys()
+            if not self.gemini_api_keys:
+                raise ValueError(f"{self.name} requires GEMINI_API_KEY or GEMINI_API_KEYS when using Gemini provider")
             
-            # Initialize Gemini
-            genai.configure(api_key=settings.GEMINI_API_KEY)
+            # Track current key index for rotation
+            self.current_key_index = 0
             self.model = settings.GEMINI_MODEL
-            self.client = genai.GenerativeModel(
-                model_name=self.model,
-                generation_config={
-                    "temperature": settings.LLM_TEMPERATURE,
-                    "max_output_tokens": settings.MAX_TOKENS_PER_REQUEST,
-                }
-            )
+            
+            # Initialize with first key
+            self._init_gemini_client(self.gemini_api_keys[0])
+            
+            logger.info(f"[{self.name}] Initialized with {len(self.gemini_api_keys)} Gemini API key(s)")
+            
         else:
             raise ValueError(f"Unsupported LLM provider: {self.provider}. Use 'openai' or 'gemini'")
         
         self.max_tokens = settings.MAX_TOKENS_PER_REQUEST
         self.temperature = settings.LLM_TEMPERATURE
+    
+    def _init_gemini_client(self, api_key: str):
+        """Initialize or reinitialize Gemini client with a specific API key."""
+        genai.configure(api_key=api_key)
+        self.client = genai.GenerativeModel(
+            model_name=self.model,
+            generation_config={
+                "temperature": self.temperature,
+                "max_output_tokens": self.max_tokens,
+            }
+        )
+        self.current_api_key = api_key
+    
+    def _rotate_gemini_key(self) -> bool:
+        """
+        Rotate to the next Gemini API key.
+        Returns True if rotation was successful, False if no more keys available.
+        """
+        if len(self.gemini_api_keys) <= 1:
+            logger.warning(f"[{self.name}] No additional API keys available for rotation")
+            return False
+        
+        # Move to next key
+        self.current_key_index = (self.current_key_index + 1) % len(self.gemini_api_keys)
+        next_key = self.gemini_api_keys[self.current_key_index]
+        
+        logger.info(f"[{self.name}] Rotating to API key #{self.current_key_index + 1}/{len(self.gemini_api_keys)}")
+        
+        # Reinitialize client with new key
+        self._init_gemini_client(next_key)
+        return True
     
     def review(self, changes: List[ParsedChange]) -> List[ReviewComment]:
         """
@@ -187,12 +219,14 @@ class LLMAgent(BaseAgent):
             logger.error(f"[{self.name}] Unexpected error: {e}")
             return '{"issues": []}'
     
-    def _call_gemini(self, prompt: str) -> str:
+    def _call_gemini(self, prompt: str, retry_count: int = 0) -> str:
         """
-        Call Gemini API.
+        Call Gemini API with automatic key rotation on rate limits.
         """
         import time
         from google.api_core import exceptions as google_exceptions
+        
+        max_rotation_attempts = len(self.gemini_api_keys) if hasattr(self, 'gemini_api_keys') else 1
         
         try:
             # Combine system prompt and user prompt for Gemini
@@ -215,9 +249,20 @@ class LLMAgent(BaseAgent):
                 return '{"issues": []}'
                 
         except google_exceptions.ResourceExhausted as e:
-            # Rate limit exceeded - log and return empty instead of crashing
-            logger.warning(f"[{self.name}] Gemini rate limit exceeded. Consider reducing concurrent agents or waiting. Error: {e}")
+            # Rate limit exceeded - try rotating to next API key
+            logger.warning(f"[{self.name}] Rate limit hit on API key #{self.current_key_index + 1}")
+            
+            # Only retry if we haven't exhausted all keys
+            if retry_count < max_rotation_attempts - 1:
+                if self._rotate_gemini_key():
+                    logger.info(f"[{self.name}] Retrying with rotated API key...")
+                    time.sleep(1)  # Brief pause before retry
+                    return self._call_gemini(prompt, retry_count + 1)
+            
+            # All keys exhausted or rotation failed
+            logger.error(f"[{self.name}] All {max_rotation_attempts} API key(s) rate limited. Returning empty results.")
             return '{"issues": []}'
+            
         except Exception as e:
             logger.error(f"[{self.name}] Gemini API error: {e}")
             # Return empty issues instead of crashing

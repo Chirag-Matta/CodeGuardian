@@ -67,3 +67,29 @@ def should_skip_file(file_path: str) -> bool:
     ]
     
     return any(pattern in file_path for pattern in skip_patterns)
+
+#Add full file context
+def get_file_context(file_path: str, changes: List[ParsedChange], 
+                      repo_path: str = None) -> str:
+    """
+    Get surrounding context for better analysis.
+    Include 5 lines before/after each change.
+    """
+    if not repo_path:
+        return create_code_block(changes)
+    
+    try:
+        with open(os.path.join(repo_path, file_path), 'r') as f:
+            lines = f.readlines()
+        
+        context_lines = []
+        for change in changes:
+            start = max(0, change.new_line_no - 5)
+            end = min(len(lines), change.new_line_no + 5)
+            context_lines.append({
+                'line': change.new_line_no,
+                'context': ''.join(lines[start:end])
+            })
+        return context_lines
+    except:
+        return create_code_block(changes)
