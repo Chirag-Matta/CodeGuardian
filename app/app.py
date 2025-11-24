@@ -8,6 +8,7 @@ from app.models import (
 )
 from app.github_client import GitHubClient
 from app.orchestrator import run_multi_agent_review
+import httpx
 
 app = FastAPI(
     title="Automated GitHub PR Review Agent",

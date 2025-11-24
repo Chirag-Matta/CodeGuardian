@@ -34,6 +34,10 @@ class LLMAgent(BaseAgent):
     agent_type: str  # Must be set by subclass: "logic", "security", etc.
     
     def __init__(self):
+        # ✅ FIX: Set temperature and max_tokens BEFORE initializing clients
+        self.max_tokens = settings.MAX_TOKENS_PER_REQUEST
+        self.temperature = settings.LLM_TEMPERATURE
+        
         self.provider = settings.LLM_PROVIDER.lower()
         
         if self.provider == "openai":
@@ -69,9 +73,6 @@ class LLMAgent(BaseAgent):
             
         else:
             raise ValueError(f"Unsupported LLM provider: {self.provider}. Use 'openai' or 'gemini'")
-        
-        self.max_tokens = settings.MAX_TOKENS_PER_REQUEST
-        self.temperature = settings.LLM_TEMPERATURE
     
     def _init_gemini_client(self, api_key: str):
         """Initialize or reinitialize Gemini client with a specific API key."""
