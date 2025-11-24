@@ -11,6 +11,7 @@ An intelligent multi-agent system that automatically reviews GitHub Pull Request
 - **✅ Code Quality**: Best practices, debugging statements, style consistency
 - **🔄 API Key Rotation**: Automatic rotation for Gemini API rate limits
 - **📊 Structured Output**: JSON reports with severity levels and actionable suggestions
+- **🛡️ Robust Diff Parsing**: Graceful handling of malformed diffs with fallback parser
 
 ## 🏗️ Architecture
 
@@ -22,6 +23,12 @@ An intelligent multi-agent system that automatically reviews GitHub Pull Request
          ▼
 ┌─────────────────┐
 │  FastAPI Server │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Diff Parser    │
+│  (with fallback)│
 └────────┬────────┘
          │
          ▼
@@ -161,24 +168,106 @@ Server will be available at `http://localhost:8000`
 curl http://localhost:8000/health
 ```
 
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
 #### 2. Review GitHub PR
 ```bash
 curl -X POST http://localhost:8000/review-pr \
   -H "Content-Type: application/json" \
   -d '{
-    "owner": "Chirag-Matta",
-    "repo": "YouTubeFetcherAPI",
+    "owner": "username",
+    "repo": "repository",
     "pr_number": 1
   }'
 ```
 
 #### 3. Review Raw Diff
+
+**Simple Example:**
 ```bash
 curl -X POST http://localhost:8000/review-diff \
   -H "Content-Type: application/json" \
   -d '{
-    "diff": "diff --git a/file.py b/file.py\n..."
+    "diff": "diff --git a/app/db.py b/app/db.py\n--- a/app/db.py\n+++ b/app/db.py\n@@ -10,0 +10,3 @@\n+password = \"hardcoded_pass\"\n+query = \"SELECT * FROM users WHERE id=\" + user_id\n+print(\"Debug:\", data)\n"
   }'
+```
+
+**Using a File:**
+```bash
+# Create test_diff.json
+cat > test_diff.json << 'EOF'
+{
+  "diff": "diff --git a/app/youtube.py b/app/youtube.py\n--- a/app/youtube.py\n+++ b/app/youtube.py\n@@ -45,3 +45,8 @@ async def fetch_youtube_videos():\n     for key in valid_api_keys:\n         params = {\n             \"part\": \"snippet\",\n+            \"key\": \"AIzaSyC1234567890\"\n         }\n+        for user in users:\n+            video = db.query(Video).filter_by(user_id=user.id).first()\n"
+}
+EOF
+
+# Send request
+curl -X POST http://localhost:8000/review-diff \
+  -H "Content-Type: application/json" \
+  -d @test_diff.json | jq .
+```
+
+**Python Script (Recommended):**
+```python
+#!/usr/bin/env python3
+import requests
+import json
+
+# Sample diff with multiple issues
+test_diff = """diff --git a/app/database.py b/app/database.py
+--- a/app/database.py
++++ b/app/database.py
+@@ -8,1 +8,5 @@
+ load_dotenv()
+ 
++# Security issue: hardcoded credentials
++DATABASE_URL = "postgresql://admin:password123@localhost/db"
++API_KEY = "sk_live_1234567890abcdef"
++
++# Performance issue: N+1 query
++for user in users:
++    db.query(Order).filter_by(user_id=user.id).all()
+"""
+
+# Send request
+response = requests.post(
+    "http://localhost:8000/review-diff",
+    json={"diff": test_diff}
+)
+
+# Print results
+if response.status_code == 200:
+    print("✅ Review successful!")
+    print(json.dumps(response.json(), indent=2))
+else:
+    print(f"❌ Error {response.status_code}")
+    print(response.text)
+```
+
+**From GitHub PR:**
+```bash
+#!/bin/bash
+
+# Fetch PR diff from GitHub
+PR_DIFF=$(curl -s -H "Accept: application/vnd.github.v3.diff" \
+  "https://api.github.com/repos/owner/repo/pulls/1")
+
+# Create JSON payload
+cat > pr_payload.json << EOF
+{
+  "diff": $(echo "$PR_DIFF" | jq -Rs .)
+}
+EOF
+
+# Send to review endpoint
+curl -X POST http://localhost:8000/review-diff \
+  -H "Content-Type: application/json" \
+  -d @pr_payload.json | jq .
 ```
 
 ### Example Response
@@ -187,28 +276,52 @@ curl -X POST http://localhost:8000/review-diff \
 {
   "summary": {
     "total_comments": 5,
-    "critical": 1,
+    "critical": 2,
     "major": 2,
     "minor": 1,
-    "info": 1,
-    "message": "Found 5 potential issue(s): 1 critical, 2 major, 1 minor, 1 informational."
+    "info": 0,
+    "message": "Found 5 potential issue(s): 2 critical, 2 major, 1 minor, 0 informational."
   },
   "files": {
-    "app/db.py": {
+    "app/database.py": {
       "critical": [
         {
           "agent": "security_agent",
-          "comment": "SQL injection vulnerability via string concatenation",
-          "suggestion": "Use parameterized queries: cursor.execute('SELECT * FROM users WHERE id=?', (user_id,))",
-          "lines": [45]
+          "comment": "Hardcoded database credentials detected in code",
+          "suggestion": "Move credentials to environment variables using os.getenv()",
+          "lines": [11]
+        },
+        {
+          "agent": "security_agent",
+          "comment": "Hardcoded API key detected",
+          "suggestion": "Store API keys in .env file and load with python-dotenv",
+          "lines": [12]
         }
       ],
       "major": [
         {
           "agent": "performance_agent",
-          "comment": "N+1 query problem detected in loop",
-          "suggestion": "Use eager loading or a single JOIN query",
-          "lines": [67, 68]
+          "comment": "N+1 query problem detected - database query inside loop",
+          "suggestion": "Use eager loading or batch queries to reduce database calls",
+          "lines": [15, 16]
+        }
+      ]
+    },
+    "app/youtube.py": {
+      "major": [
+        {
+          "agent": "logic_agent",
+          "comment": "Possible assignment in conditional (= instead of ==)",
+          "suggestion": "Verify you meant to use comparison operator (==) not assignment (=)",
+          "lines": [67]
+        }
+      ],
+      "minor": [
+        {
+          "agent": "code_quality_agent",
+          "comment": "Debug print statement found",
+          "suggestion": "Remove debug statements or use proper logging (logging.debug())",
+          "lines": [70]
         }
       ]
     }
@@ -234,7 +347,7 @@ pr-review-agent/
 │   │   └── prompts.py              # LLM prompt templates
 │   ├── app.py                      # FastAPI application
 │   ├── config.py                   # Configuration management
-│   ├── diff_parser.py              # Git diff parser
+│   ├── diff_parser.py              # Git diff parser (with fallback)
 │   ├── github_client.py            # GitHub API client
 │   ├── models.py                   # Pydantic models
 │   └── orchestrator.py             # Multi-agent orchestrator
@@ -294,6 +407,46 @@ pytest app/tests/test_agents.py -v
 pytest --cov=app --cov-report=html
 ```
 
+### Manual Testing with Different Scenarios
+
+**Test Security Agent:**
+```bash
+python << 'EOF'
+import requests
+
+diff = """diff --git a/config.py b/config.py
+--- a/config.py
++++ b/config.py
+@@ -1,0 +1,2 @@
++API_KEY = "sk_live_1234567890"
++query = "SELECT * FROM users WHERE id=" + user_id
+"""
+
+r = requests.post("http://localhost:8000/review-diff", json={"diff": diff})
+print(r.json())
+EOF
+```
+
+**Test Performance Agent:**
+```bash
+python << 'EOF'
+import requests
+
+diff = """diff --git a/api.py b/api.py
+--- a/api.py
++++ b/api.py
+@@ -10,0 +10,3 @@
++for user in all_users:
++    orders = db.query(Order).filter_by(user_id=user.id).all()
++    for order in orders:
++        items = db.query(Item).filter_by(order_id=order.id).all()
+"""
+
+r = requests.post("http://localhost:8000/review-diff", json={"diff": diff})
+print(r.json())
+EOF
+```
+
 ## 📊 Output Files
 
 Reviews are automatically saved to `output/` directory:
@@ -309,7 +462,8 @@ Example output structure:
     "critical": 1,
     "major": 1,
     "minor": 1,
-    "info": 0
+    "info": 0,
+    "message": "Found 3 potential issue(s): 1 critical, 1 major, 1 minor, 0 informational."
   },
   "files": {
     "app/db.py": {
@@ -343,22 +497,32 @@ ERROR: 404 models/gemini-2.0-flash-live is not found
 GEMINI_MODEL=gemini-2.0-flash-exp  # or gemini-1.5-flash
 ```
 
-**2. GitHub API Rate Limit**
+**2. Diff Parse Error**
+```
+UnidiffParseError: Hunk is shorter than expected
+```
+**Solution**: The updated diff parser now handles this automatically with a fallback parser. If issues persist:
+- Ensure diff has proper format (headers, hunks)
+- Check that line counts match in hunk headers
+- Use the Python script method instead of raw curl
+
+**3. GitHub API Rate Limit**
 ```
 403 API rate limit exceeded
 ```
 **Solution**: Use authenticated GitHub token with higher limits
 
-**3. Empty Review Results**
+**4. Empty Review Results**
 ```
 "message": "No issues detected"
 ```
 **Solution**: 
 - Check if agents are enabled in `.env`
-- Verify diff contains actual code changes
+- Verify diff contains actual code changes (added lines with `+`)
 - Check `MIN_SEVERITY_LEVEL` setting
+- Try the test examples above to verify agents are working
 
-**4. JSON Parse Error**
+**5. JSON Parse Error from LLM**
 ```
 Failed to parse JSON response
 ```
@@ -367,10 +531,45 @@ Failed to parse JSON response
 - Reduce `BATCH_SIZE`
 - Check LLM provider status
 
+**6. Invalid Diff Format**
+```
+Empty diff provided or parsing failed
+```
+**Solution**:
+- Use proper git diff format (see examples above)
+- Ensure newlines are escaped as `\n` in JSON
+- Try the Python script method for automatic formatting
+
+## 📝 Diff Format Requirements
+
+For manual diff creation, follow this format:
+
+```
+diff --git a/file.py b/file.py
+--- a/file.py
++++ b/file.py
+@@ -start,count +start,count @@
+ context line
++added line
+-removed line
+ context line
+```
+
+**Key points:**
+- Must start with `diff --git a/... b/...`
+- Include `---` and `+++` file markers
+- Hunk headers: `@@ -old_start,old_count +new_start,new_count @@`
+- Added lines start with `+`
+- Removed lines start with `-`
+- Context lines start with space
+
+The fallback parser can handle some malformed diffs, but proper format is recommended.
+
 ## 🚀 Deployment
 
 ### Docker (Recommended)
 
+**Dockerfile:**
 ```dockerfile
 FROM python:3.11-slim
 
@@ -429,6 +628,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔮 Roadmap
 
+- [x] Multi-agent review system
+- [x] Gemini API key rotation
+- [x] Robust diff parsing with fallback
 - [ ] GitHub App integration (automatic PR comments)
 - [ ] Support for more LLM providers (Anthropic Claude, Llama)
 - [ ] Custom rule configuration
@@ -436,6 +638,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Integration with CI/CD pipelines
 - [ ] Multi-language support enhancement
 - [ ] Code fix suggestions with diffs
+- [ ] Real-time streaming responses
+- [ ] Webhook support for automated reviews
 
 ---
 
