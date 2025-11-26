@@ -36,7 +36,7 @@ export default function ReviewPage() {
             <div>
               <h1 className="text-3xl font-bold mb-2">Review Results</h1>
               <p className="text-gray-600 dark:text-gray-400">
-                Found {result.summary.total} potential issues
+                Found {result.summary.total_comments} potential issues
               </p>
             </div>
             <Button variant="outline" onClick={handleNewReview}>

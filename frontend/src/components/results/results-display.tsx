@@ -150,7 +150,7 @@ export function ResultsDisplay({ result }: ResultsDisplayProps) {
         <div key={file} className="space-y-3">
           <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-800 dark:to-gray-800 rounded-lg border-l-4 border-indigo-500">
             <FileCode className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="text-lg font-semibold flex-1">{file}</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex-1">{file}</h3>
             <Badge variant="outline" className="text-sm px-3 py-1">
               {issues.length} {issues.length === 1 ? 'issue' : 'issues'}
             </Badge>

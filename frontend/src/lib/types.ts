@@ -28,6 +28,7 @@ export interface ReadableAgentComment {
 export interface ReviewResult {
   summary: ReviewSummary;
   files: Record<string, Record<string, ReadableAgentComment[]>>;
+  total: number;
 }
 
 export interface PRInput {

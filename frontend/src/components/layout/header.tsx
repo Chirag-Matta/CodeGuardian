@@ -18,9 +18,9 @@ export  function Home() {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-100 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800">
               <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+              {/* <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
                 Powered by Gemini 2.0 Flash
-              </span>
+              </span> */}
             </div>
 
             {/* Main Heading */}
