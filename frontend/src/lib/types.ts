@@ -34,10 +34,12 @@ export interface PRInput {
   owner: string;
   repo: string;
   pr_number: number;
+  agents?: string[]; // Optional: selected agent names
 }
 
 export interface DiffInput {
   diff: string;
+  agents?: string[]; // Optional: selected agent names
 }
 
 // Helper to convert backend response to flat comments for easier filtering

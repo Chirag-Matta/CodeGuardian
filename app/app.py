@@ -1,3 +1,4 @@
+# app/app.py - Pass selected agents to orchestrator
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,7 +39,10 @@ async def review_diff(payload: DiffReviewRequest):
     if not payload.diff.strip():
         raise HTTPException(status_code=400, detail="Diff is empty")
 
-    review = run_multi_agent_review(payload.diff)
+    review = run_multi_agent_review(
+        payload.diff,
+        selected_agents=payload.agents  # Pass selected agents
+    )
     return review
 
 @app.post(
@@ -64,6 +68,10 @@ async def review_pr(payload: PRReviewRequest):
     if not diff_text.strip():
         raise HTTPException(status_code=400, detail="PR diff is empty")
 
-    review = run_multi_agent_review(diff_text, payload.pr_number)
+    review = run_multi_agent_review(
+        diff_text,
+        payload.pr_number,
+        selected_agents=payload.agents  # Pass selected agents
+    )
 
     return review
