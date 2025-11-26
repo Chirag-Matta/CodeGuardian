@@ -51,8 +51,7 @@ htmlcov/
 
 # ---- Output files (your saved PR review JSONs) ----
 output/
-reports/
-*.json
+reports
 
 # ---- Build + dist ----
 build/
