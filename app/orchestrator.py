@@ -1,10 +1,11 @@
+from app.agents.speed_optimized_agent import SpeedOptimizedLogicAgent
 from typing import List, Optional
 from app.diff_parser import parse_diff, ParsedChange
 from app.models import ReviewComment, ReadableReviewResponse, ReviewSummary
-from app.agents.code_quality_agent import CodeQualityAgent
-from app.agents.logic_agent import LogicAgent
-from app.agents.security_agent import SecurityAgent
-from app.agents.performance_agent import PerformanceAgent
+from app.agents.speed_optimized_agent import SpeedOptimizedLogicAgent
+from app.agents.speed_optimized_agent import SpeedOptimizedSecurityAgent
+from app.agents.speed_optimized_agent import SpeedOptimizedCodeQualityAgent
+from app.agents.speed_optimized_agent import SpeedOptimizedPerformanceAgent
 from app.agents.readability_agent import ReadabilityAgent
 from app.agents.base import BaseAgent
 from app.config import settings
@@ -17,10 +18,10 @@ logger = logging.getLogger(__name__)
 
 # Map of agent names to classes
 AGENT_MAP = {
-    'code_quality_agent': CodeQualityAgent,
-    'logic_agent': LogicAgent,
-    'security_agent': SecurityAgent,
-    'performance_agent': PerformanceAgent,
+    'code_quality_agent': SpeedOptimizedCodeQualityAgent,
+    'logic_agent': SpeedOptimizedLogicAgent,
+    'security_agent': SpeedOptimizedSecurityAgent,
+    'performance_agent': SpeedOptimizedPerformanceAgent,
     'readability_agent': ReadabilityAgent,
 }
 
@@ -49,13 +50,13 @@ def get_agents(selected_agents: Optional[List[str]] = None) -> List[BaseAgent]:
     
     # Otherwise, use configuration settings
     if settings.ENABLE_CODE_QUALITY_AGENT:
-        agents.append(CodeQualityAgent())
+        agents.append(SpeedOptimizedCodeQualityAgent())
     if settings.ENABLE_LOGIC_AGENT:
-        agents.append(LogicAgent())
+        agents.append(SpeedOptimizedLogicAgent())
     if settings.ENABLE_SECURITY_AGENT:
-        agents.append(SecurityAgent())
+        agents.append(SpeedOptimizedSecurityAgent())
     if settings.ENABLE_PERFORMANCE_AGENT:
-        agents.append(PerformanceAgent())
+        agents.append(SpeedOptimizedPerformanceAgent())
     if settings.ENABLE_READABILITY_AGENT:
         agents.append(ReadabilityAgent())
     
