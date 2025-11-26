@@ -1,15 +1,16 @@
+// frontend/src/components/review/review-input.tsx - Fixed API integration
 'use client';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, Github } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { PRInput } from '@/lib/types';
+import type { PRInput, ReviewResult } from '@/lib/types';
 
 interface ReviewInputProps {
-  onReviewComplete: (data: any) => void;
+  onReviewComplete: (data: ReviewResult) => void;
 }
 
 export function ReviewInput({ onReviewComplete }: ReviewInputProps) {
@@ -20,21 +21,13 @@ export function ReviewInput({ onReviewComplete }: ReviewInputProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const [agents, setAgents] = useState({
-    security: true,
-    performance: true,
-    logic: true,
-    quality: true,
-    readability: true,
-  });
-
   const parsePRUrl = (url: string) => {
-    // Parse GitHub PR URL: https://github.com/owner/repo/pull/123
     const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
     if (match) {
       setOwner(match[1]);
       setRepo(match[2]);
       setPrNumber(match[3]);
+      setError('');
       return true;
     }
     return false;
@@ -42,7 +35,14 @@ export function ReviewInput({ onReviewComplete }: ReviewInputProps) {
 
   const handleUrlChange = (url: string) => {
     setPrUrl(url);
-    parsePRUrl(url);
+    if (url) {
+      const parsed = parsePRUrl(url);
+      if (!parsed && url.includes('github.com')) {
+        setError('Invalid GitHub PR URL format');
+      } else if (parsed) {
+        setError('');
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,31 +66,55 @@ export function ReviewInput({ onReviewComplete }: ReviewInputProps) {
       const result = await api.reviewPR(data);
       onReviewComplete(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to review PR');
+      setError(err instanceof Error ? err.message : 'Failed to review PR. Please check your inputs and try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const isValidInput = owner && repo && prNumber;
+
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Review GitHub Pull Request</CardTitle>
-        <CardDescription>
-          Enter a GitHub PR URL or fill in the details manually
-        </CardDescription>
+    <Card className="max-w-2xl mx-auto shadow-xl border-2">
+      <CardHeader className="space-y-2 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-800 dark:to-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-indigo-600 dark:bg-indigo-500">
+            <Github className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <CardTitle className="text-2xl">Review GitHub Pull Request</CardTitle>
+            <CardDescription className="text-base">
+              Enter a GitHub PR URL to get instant AI-powered feedback
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
+      
+      <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* PR URL Input */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">GitHub PR URL</label>
-            <Input
-              type="text"
-              placeholder="https://github.com/owner/repo/pull/123"
-              value={prUrl}
-              onChange={(e) => handleUrlChange(e.target.value)}
-            />
+            <label className="text-sm font-semibold flex items-center gap-2">
+              GitHub PR URL
+              {isValidInput && (
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+              )}
+            </label>
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="https://github.com/owner/repo/pull/123"
+                value={prUrl}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                className="h-12 text-base"
+              />
+              {prUrl && !isValidInput && (
+                <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-amber-500" />
+              )}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Example: https://github.com/facebook/react/pull/12345
+            </p>
           </div>
 
           <div className="relative">
@@ -107,68 +131,88 @@ export function ReviewInput({ onReviewComplete }: ReviewInputProps) {
           {/* Manual Input */}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Owner</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Owner
+              </label>
               <Input
                 type="text"
-                placeholder="owner"
+                placeholder="facebook"
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
+                className="h-11"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Repo</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Repository
+              </label>
               <Input
                 type="text"
-                placeholder="repo"
+                placeholder="react"
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
+                className="h-11"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">PR #</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                PR Number
+              </label>
               <Input
                 type="number"
                 placeholder="123"
                 value={prNumber}
                 onChange={(e) => setPrNumber(e.target.value)}
+                className="h-11"
               />
             </div>
           </div>
 
-          {/* Agent Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Agents to Run</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {Object.entries(agents).map(([key, value]) => (
-                <label key={key} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={value}
-                    onChange={(e) => setAgents({ ...agents, [key]: e.target.checked })}
-                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                  />
-                  <span className="text-sm capitalize">{key}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-600 dark:text-red-400">
-              {error}
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-md">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                    Error
+                  </p>
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                    {error}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button 
+            type="submit" 
+            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700" 
+            disabled={loading || !isValidInput}
+          >
             {loading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Reviewing PR...
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Analyzing PR with 5 AI Agents...
               </>
             ) : (
-              'Review Pull Request'
+              <>
+                <Github className="mr-2 h-5 w-5" />
+                Review Pull Request
+              </>
             )}
           </Button>
+
+          {loading && (
+            <div className="space-y-2 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-900 dark:text-blue-100">
+                <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+                Running analysis...
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                This typically takes 10-30 seconds depending on PR size
+              </p>
+            </div>
+          )}
         </form>
       </CardContent>
     </Card>

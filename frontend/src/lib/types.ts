@@ -1,3 +1,4 @@
+// frontend/src/lib/types.ts - FIXED to match backend response
 export interface ReviewComment {
   file: string;
   line: number;
@@ -7,13 +8,26 @@ export interface ReviewComment {
   suggestion?: string;
 }
 
+export interface ReviewSummary {
+  total_comments: number;
+  critical: number;
+  major: number;
+  minor: number;
+  info: number;
+  message: string;
+}
+
+export interface ReadableAgentComment {
+  agent: string;
+  comment: string;
+  suggestion?: string;
+  lines: number[];
+}
+
+// Backend response structure
 export interface ReviewResult {
-  comments: ReviewComment[];
-  summary: {
-    total: number;
-    by_severity: Record<string, number>;
-    by_agent: Record<string, number>;
-  };
+  summary: ReviewSummary;
+  files: Record<string, Record<string, ReadableAgentComment[]>>;
 }
 
 export interface PRInput {
@@ -24,4 +38,28 @@ export interface PRInput {
 
 export interface DiffInput {
   diff: string;
+}
+
+// Helper to convert backend response to flat comments for easier filtering
+export function flattenReviewResult(result: ReviewResult): ReviewComment[] {
+  const comments: ReviewComment[] = [];
+  
+  Object.entries(result.files).forEach(([file, severityMap]) => {
+    Object.entries(severityMap).forEach(([severity, agentComments]) => {
+      agentComments.forEach((ac) => {
+        ac.lines.forEach((line) => {
+          comments.push({
+            file,
+            line,
+            severity: severity as ReviewComment['severity'],
+            agent: ac.agent,
+            comment: ac.comment,
+            suggestion: ac.suggestion,
+          });
+        });
+      });
+    });
+  });
+  
+  return comments;
 }

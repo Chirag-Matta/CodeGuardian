@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from app.models import (
     PRReviewRequest,
     DiffReviewRequest,
@@ -14,6 +15,14 @@ app = FastAPI(
     title="Automated GitHub PR Review Agent",
     version="1.0.0",
     description="Backend service to analyze GitHub Pull Requests using a multi-agent review system.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/health")
