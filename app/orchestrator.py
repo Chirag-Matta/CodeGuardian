@@ -1,140 +1,4 @@
-# from typing import List
-# from app.diff_parser import parse_diff, ParsedChange
-# from app.models import ReviewComment, ReadableReviewResponse, ReviewSummary
-# from app.agents.code_quality_agent import CodeQualityAgent
-# from app.agents.logic_agent import LogicAgent
-# from app.agents.security_agent import SecurityAgent
-# from app.agents.performance_agent import PerformanceAgent
-# from app.agents.readability_agent import ReadabilityAgent
-# from app.agents.base import BaseAgent
-# import os
-# import json
-# from datetime import datetime
-
-# def get_agents() -> List[BaseAgent]:
-#     return [
-#         CodeQualityAgent(),
-#         LogicAgent(),
-#         SecurityAgent(),
-#         PerformanceAgent(),
-#         ReadabilityAgent(),
-#     ]
-
-# def run_multi_agent_review(diff_text: str, pr_number: int | None = None) -> ReadableReviewResponse:
-
-#     changes: List[ParsedChange] = parse_diff(diff_text)
-#     agents = get_agents()
-
-#     all_comments: List[ReviewComment] = []
-
-#     # Round-robin over all agents
-#     for agent in agents:
-#         comments = agent.review(changes)
-#         all_comments.extend(comments)
-
-#     # Deduplicate comments (very naive: by file+line+comment text)
-#     unique_map: dict[tuple[str, int, str], ReviewComment] = {}
-#     for c in all_comments:
-#         key = (c.file, c.line, c.comment)
-#         if key not in unique_map:
-#             unique_map[key] = c
-
-#     unique_comments = list(unique_map.values())
-
-#     # Summary
-#     severity_counts = {"critical": 0, "major": 0, "minor": 0, "info": 0}
-#     for c in unique_comments:
-#         severity_counts[c.severity] += 1
-
-#     total = len(unique_comments)
-#     if total == 0:
-#         msg = "No issues detected by automated review agents."
-#     else:
-#         msg = (
-#             f"Found {total} potential issue(s): "
-#             f"{severity_counts['critical']} critical, "
-#             f"{severity_counts['major']} major, "
-#             f"{severity_counts['minor']} minor, "
-#             f"{severity_counts['info']} informational."
-#         )
-
-#     summary = ReviewSummary(
-#         total_comments=total,
-#         critical=severity_counts["critical"],
-#         major=severity_counts["major"],
-#         minor=severity_counts["minor"],
-#         info=severity_counts["info"],
-#         message=msg,
-#     )
-
-#     # return ReadableReviewResponse(summary=summary, comments=unique_comments)
-
-#     # ----- Better Readability Formatting -----
-
-#     # Structure:
-#     # files = { file_path: { severity: [ {..comment..}, ... ] } }
-#     files: dict[str, dict[str, list[ReviewComment]]] = {}
-
-#     for c in unique_comments:
-#         if c.file not in files:
-#             files[c.file] = {}
-#         if c.severity not in files[c.file]:
-#             files[c.file][c.severity] = []
-#         files[c.file][c.severity].append(c)
-
-#     # Deduplicate repeated messages: merge lines for same comment text
-#     cleaned_files = {}
-
-#     for file_path, severity_map in files.items():
-#         cleaned_files[file_path] = {}
-#         for severity, comments in severity_map.items():
-#             merged: dict[str, dict] = {}
-
-#             for c in comments:
-#                 key = f"{c.agent}:{c.comment}"
-#                 if key not in merged:
-#                     merged[key] = {
-#                         "agent": c.agent,
-#                         "comment": c.comment,
-#                         "suggestion": c.suggestion,
-#                         "lines": [c.line],
-#                     }
-#                 else:
-#                     merged[key]["lines"].append(c.line)
-
-#             cleaned_files[file_path][severity] = list(merged.values())
-
-#     final_response = ReadableReviewResponse(
-#         summary=summary,
-#         files=cleaned_files
-#     )
-
-#     # Save readable output to JSON file
-#     save_review_to_file(
-#         review_data=final_response.model_dump(),
-#         pr_number=pr_number  # Use the function parameter directly
-#     )
-
-#     return final_response
-
-
-
-# def save_review_to_file(review_data: dict, pr_number: int | None = None):
-#     os.makedirs("output", exist_ok=True)
-
-#     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-#     if pr_number:
-#         filename = f"output/pr_{pr_number}_review_{timestamp}.json"
-#     else:
-#         filename = f"output/diff_review_{timestamp}.json"
-
-#     with open(filename, "w") as f:
-#         json.dump(review_data, f, indent=4)
-
-#     print(f"[SAVED] Review JSON saved to {filename}")
-
-
-from typing import List
+from typing import List, Optional
 from app.diff_parser import parse_diff, ParsedChange
 from app.models import ReviewComment, ReadableReviewResponse, ReviewSummary
 from app.agents.code_quality_agent import CodeQualityAgent
@@ -151,13 +15,39 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Map of agent names to classes
+AGENT_MAP = {
+    'code_quality_agent': CodeQualityAgent,
+    'logic_agent': LogicAgent,
+    'security_agent': SecurityAgent,
+    'performance_agent': PerformanceAgent,
+    'readability_agent': ReadabilityAgent,
+}
 
-def get_agents() -> List[BaseAgent]:
+
+def get_agents(selected_agents: Optional[List[str]] = None) -> List[BaseAgent]:
     """
-    Return enabled agents based on configuration.
+    Return enabled agents based on configuration and user selection.
+    
+    Args:
+        selected_agents: Optional list of agent names to run. If None, uses config settings.
     """
     agents = []
     
+    # If specific agents are requested, use only those
+    if selected_agents:
+        for agent_name in selected_agents:
+            if agent_name in AGENT_MAP:
+                try:
+                    agents.append(AGENT_MAP[agent_name]())
+                    logger.info(f"Enabled agent: {agent_name}")
+                except Exception as e:
+                    logger.error(f"Failed to initialize {agent_name}: {e}")
+            else:
+                logger.warning(f"Unknown agent requested: {agent_name}")
+        return agents
+    
+    # Otherwise, use configuration settings
     if settings.ENABLE_CODE_QUALITY_AGENT:
         agents.append(CodeQualityAgent())
     if settings.ENABLE_LOGIC_AGENT:
@@ -172,9 +62,18 @@ def get_agents() -> List[BaseAgent]:
     return agents
 
 
-def run_multi_agent_review(diff_text: str, pr_number: int | None = None) -> ReadableReviewResponse:
+def run_multi_agent_review(
+    diff_text: str, 
+    pr_number: Optional[int] = None,
+    selected_agents: Optional[List[str]] = None
+) -> ReadableReviewResponse:
     """
     Run all enabled agents on the diff and return structured review.
+    
+    Args:
+        diff_text: The git diff to analyze
+        pr_number: Optional PR number for logging
+        selected_agents: Optional list of agent names to run
     """
     logger.info(f"Starting review for PR #{pr_number if pr_number else 'manual diff'}")
     
@@ -185,10 +84,10 @@ def run_multi_agent_review(diff_text: str, pr_number: int | None = None) -> Read
     if not changes:
         return _empty_review("No code changes detected in diff")
     
-    # Get enabled agents
-    agents = get_agents()
+    # Get enabled agents (filtered by user selection if provided)
+    agents = get_agents(selected_agents)
     if not agents:
-        return _empty_review("No review agents enabled")
+        return _empty_review("No review agents enabled or selected")
     
     logger.info(f"Running {len(agents)} agents: {[a.name for a in agents]}")
     
@@ -298,7 +197,7 @@ def run_multi_agent_review(diff_text: str, pr_number: int | None = None) -> Read
     # Save to file
     save_review_to_file(
         review_data=final_response.model_dump(),
-        pr_number=pr_number  # ✅ FIXED: Use parameter directly
+        pr_number=pr_number
     )
     
     return final_response
@@ -319,7 +218,7 @@ def _empty_review(message: str) -> ReadableReviewResponse:
     )
 
 
-def save_review_to_file(review_data: dict, pr_number: int | None = None):
+def save_review_to_file(review_data: dict, pr_number: Optional[int] = None):
     """Save review results to JSON file."""
     os.makedirs("output", exist_ok=True)
     
