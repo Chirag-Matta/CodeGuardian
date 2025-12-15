@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { Home } from "@/components/layout/header";
+import { Navbar } from "@/components/layout/navbar"; // Import the NEW navbar
 import { Footer } from "@/components/layout/footer";
+import { CursorSpotlight } from "@/components/ui/cursor-spotlight";
 
-const inter = Inter({ subsets: ["latin"] });
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains" });
 
 export const metadata: Metadata = {
-  title: "PR Review Agent - AI-Powered Code Review",
-  description: "Instant security, performance, and quality analysis for your Pull Requests",
+  title: "CodeGuardian - AI Code Review",
+  description: "Automated security and performance analysis for your PRs.",
 };
 
 export default function RootLayout({
@@ -17,13 +20,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <div className="flex min-h-screen flex-col">
-          <Home />
-          <main className="flex-1">{children}</main>
-          <Footer />
-        </div>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className={`${inter.variable} ${jetbrains.variable} font-sans min-h-screen flex flex-col bg-background text-foreground`}>
+        <CursorSpotlight />
+        <Navbar />
+        <main className="flex-1 flex flex-col">{children}</main>
+        <Footer />
       </body>
     </html>
   );
