@@ -1,7 +1,7 @@
 // frontend/src/app/review/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReviewInput } from '@/components/review/review-input';
 import { DiffInput } from '@/components/review/diff-input';
@@ -12,7 +12,8 @@ import { ArrowLeft, Github, FileText } from 'lucide-react';
 
 type TabType = 'pr' | 'diff';
 
-export default function ReviewPage() {
+// Inner component that uses useSearchParams
+function ReviewPageContent() {
   const searchParams = useSearchParams();
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('pr');
@@ -97,5 +98,28 @@ export default function ReviewPage() {
         </>
       )}
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function ReviewPageLoading() {
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="animate-pulse">
+        <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
+        <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-8"></div>
+        <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded mb-6"></div>
+        <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+      </div>
+    </div>
+  );
+}
+
+// Default export wraps the content in Suspense
+export default function ReviewPage() {
+  return (
+    <Suspense fallback={<ReviewPageLoading />}>
+      <ReviewPageContent />
+    </Suspense>
   );
 }

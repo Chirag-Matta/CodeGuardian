@@ -4,7 +4,7 @@ class ReviewAPI {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://codeguardian-production.up.railway.app';
   }
 
   async reviewPR(data: PRInput): Promise<ReviewResult> {
